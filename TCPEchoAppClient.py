@@ -23,14 +23,19 @@ with socket(AF_INET, SOCK_STREAM) as clientSocket:
         print('From Server the Sentence in Upper Case:', modifiedMessage.decode())
         messageNum = clientSocket.recv(1024)
         print('From Server number of words in the sentence:', messageNum.decode())
+        print('\n')
 
         #User input confirmation
         while True:
             Yes_No =input('Do you want to send more message? Y/N  ')
             if (Yes_No == 'Y') or (Yes_No == 'y'):
+                print('\n')
                 break
             elif (Yes_No == 'N') or (Yes_No == 'n'):
                 isContinue = False
                 break
             else:
-                print('Please type Y or N only！')
+                print('Please type Y or N only！\n')
+
+print('Socket closed')
+print('Client closed')
