@@ -3,7 +3,7 @@
 # -*- coding: UTF-8 -*-
 # File Name：TCPEchoAppClient.py
 # Created: 9/16/2020
-# Author: Li Lin
+# Author: Li Lin & Anika Tasnim
 
 from socket import *
 serverName = 'localhost'
