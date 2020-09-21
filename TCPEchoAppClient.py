@@ -23,9 +23,9 @@ with socket(AF_INET, SOCK_STREAM) as clientSocket:
 
         #Receive message from server
         modifiedMessage = clientSocket.recv(1024)
-        print('From Server:', modifiedMessage.decode())
+        print('From Server the Sentence in Upper Case:', modifiedMessage.decode())
         messageNum = clientSocket.recv(1024)
-        print('From Server:', messageNum.decode())
+        print('From Server number of words in the sentence:', messageNum.decode())
 
         #User input confirmation
         while True:
