@@ -4,7 +4,7 @@
 # Created: 9/16/2020
 # Author: Li Lin & Anika Tasnim
 from socket import *
-serverName = 'localhost'
+serverName = 'localhost'    #'192.168.0.15'
 serverPort = 12000
 
 with socket(AF_INET, SOCK_STREAM) as clientSocket:
