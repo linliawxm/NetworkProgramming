@@ -1,10 +1,8 @@
-
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 # File Name：TCPEchoAppClient.py
 # Created: 9/16/2020
 # Author: Li Lin & Anika Tasnim
-
 from socket import *
 serverName = 'localhost'
 serverPort = 12000
@@ -12,7 +10,6 @@ serverPort = 12000
 with socket(AF_INET, SOCK_STREAM) as clientSocket:
     #Setup connection with server
     clientSocket.connect((serverName,serverPort))
-
     isContinue = True
     while isContinue:
         #Ask user to input message

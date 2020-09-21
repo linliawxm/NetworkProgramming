@@ -21,14 +21,16 @@ with socket(AF_INET, SOCK_STREAM) as serverSocket:
         while True:
             #Receive message from client
             message = connectionSocket.recv(1024)
+            #seperating the words by using split functions
             words = message.split()
+            #counting the number of words
             count = len(words)
-            print('Received:' + message.decode() + ';Number of Words = ' + str(count))
+            print('Received:' + message.decode() + ' ;Number of Words = ' + str(count))
             #Change all letters to Upper case
             modifiedMessage = message.decode().upper()
-            #Count the number of received message
-            messageNum = 'Number of wrds in the sentence: ' + str(count)
+            #Count the number of words from received message
+            messageNum = str(count)
             #Send uppder case letters to Client
             connectionSocket.send(modifiedMessage.encode())
-            #Send message number to Client
+            #Send word number to Client
             connectionSocket.send(messageNum.encode())
