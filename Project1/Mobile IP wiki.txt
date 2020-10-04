@@ -1,0 +1,79 @@
+Mobile IP
+From Wikipedia, the free encyclopedia
+Jump to navigationJump to search
+Mobile IP (or MIP) is an Internet Engineering Task Force (IETF) standard communications protocol that is designed to allow mobile device users to move from one network to another while maintaining a permanent IP address. Mobile IP for IPv4 is described in IETF RFC 5944, and extensions are defined in IETF RFC 4721. Mobile IPv6, the IP mobility implementation for the next generation of the Internet Protocol, IPv6, is described in RFC 6275.
+
+Internet protocol suite
+Application layer
+BGPDHCPDNSFTPHTTPHTTPSIMAPLDAPMGCPMQTTNNTPNTPPOPPTPONC/RPCRTPRTSPRIPSIPSMTPSNMPSSHTelnetTLS/SSLXMPPmore...
+Transport layer
+TCPUDPDCCPSCTPRSVPmore...
+Internet layer
+IP IPv4IPv6ICMPICMPv6ECNIGMPIPsecmore...
+Link layer
+ARPNDPOSPFTunnels L2TPPPPMAC EthernetWi-FiDSLISDNFDDI
+more...
+vte
+
+Contents
+1	Introduction
+2	Applications
+3	Operational principles
+4	Development
+4.1	Changes in IPv6 for Mobile IPv6
+5	Definition of terms
+6	See also
+7	References
+8	External links
+Introduction
+The Mobile IP allows for location-independent routing of IP datagrams on the Internet. Each mobile node is identified by its home address disregarding its current location in the Internet. While away from its home network, a mobile node is associated with a care-of address which identifies its current location and its home address is associated with the local endpoint of a tunnel to its home agent. Mobile IP specifies how a mobile node registers with its home agent and how the home agent routes datagrams to the mobile node through the tunnel.
+
+Applications
+In many applications (e.g., VPN, VoIP), sudden changes in network connectivity and IP address can cause problems. Mobile IP was designed to support seamless and continuous Internet connectivity.
+
+Mobile IP is most often found in wired and wireless environments where users need to carry their mobile devices across multiple LAN subnets. Examples of use are in roaming between overlapping wireless systems, e.g., IP over DVB, WLAN, WiMAX and BWA.
+
+Mobile IP is not required within cellular systems such as 3G, to provide transparency when Internet users migrate between cellular towers, since these systems provide their own data link layer handover and roaming mechanisms. However, it is often used in 3G systems to allow seamless IP mobility between different packet data serving node (PDSN) domains.
+
+Operational principles
+The goal of IP Mobility is to maintain the TCP connection between a mobile host and a static host while reducing the effects of location changes while the mobile host is moving around, without having to change the underlying TCP/IP.[1] To solve the problem, the RFC allows for a kind of proxy agent to act as a middle-man between a mobile host and a correspondent host.
+
+A mobile node has two addresses – a permanent home address and a care-of address (CoA), which is associated with the network the mobile node is visiting. Two kinds of entities comprise a Mobile IP implementation:
+
+A home agent (HA) stores information about mobile nodes whose permanent home address is in the home agent's network. The HA acts as a router on a mobile host's (MH) home network which tunnels datagrams for delivery to the MH when it is away from home, maintains a location directory (LD) for the MH.
+A foreign agent (FA) stores information about mobile nodes visiting its network. Foreign agents also advertise care-of addresses, which are used by Mobile IP. If there is no foreign agent in the host network, the mobile device has to take care of getting an address and advertising that address by its own means. The FA acts as a router on a MH’s visited network which provides routing services to the MH while registered. FA detunnels and delivers datagrams to the MH that were tunneled by the MH’s HA
+The so-called Care of Address is a termination point of a tunnel toward a MH, for datagrams forwarded to the MH while it is away from home.
+
+Foreign agent care-of address: the address of a foreign agent that MH registers with
+co-located care-of address: an externally obtained local address that a MH gets.
+A Mobile Node (MN) is responsible for discovering whether it is connected to its home network or has moved to a foreign network. HA’s and FA’s broadcast their presence on each network to which they are attached. They are not solely responsible for discovery, they only play a part. RFC 2002 specified that MN use agent discovery to locate these entities. When connected to a foreign network, a MN has to determine the foreign agent care-of-address being offered by each foreign agent on the network.
+
+A node wanting to communicate with the mobile node uses the permanent home address of the mobile node as the destination address to send packets to. Because the home address logically belongs to the network associated with the home agent, normal IP routing mechanisms forward these packets to the home agent. Instead of forwarding these packets to a destination that is physically in the same network as the home agent, the home agent redirects these packets towards the remote address through an IP tunnel by encapsulating the datagram with a new IP header using the care of address of the mobile node.
+
+When acting as transmitter, a mobile node sends packets directly to the other communicating node, without sending the packets through the home agent, using its permanent home address as the source address for the IP packets. This is known as triangular routing or "route optimization" (RO) mode. If needed, the foreign agent could employ reverse tunneling by tunneling the mobile node's packets to the home agent, which in turn forwards them to the communicating node. This is needed in networks whose gateway routers check that the source IP address of the mobile host belongs to their subnet or discard the packet otherwise. In Mobile IPv6 (MIPv6), "reverse tunneling" is the default behaviour, with RO being an optional behaviour.
+
+Development
+Enhancements to the Mobile IP technique, such as Mobile IPv6[2] and Hierarchical Mobile IPv6 (HMIPv6) defined in RFC 5380,[3] are being developed to improve mobile communications in certain circumstances by making the processes more secure and more efficient.
+
+Fast Handovers for Mobile IPv6 is described in IETF RFC 5568.
+
+Researchers create support for mobile networking without requiring any pre-deployed infrastructure as it currently is required by MIP. One such example is Interactive Protocol for Mobile Networking (IPMN) which promises supporting mobility on a regular IP network just from the network edges by intelligent signalling between IP at end-points and application layer module with improved quality of service.
+
+Researchers are also working to create support for mobile networking between entire subnets with support from Mobile IPv6. One such example is Network Mobility (NEMO) Network Mobility Basic Support Protocol by the IETF Network Mobility Working Group which supports mobility for entire Mobile Networks that move and to attach to different points in the Internet. The protocol is an extension of Mobile IPv6 and allows session continuity for every node in the Mobile Network as the network moves.
+
+Changes in IPv6 for Mobile IPv6
+A set of mobility options to include in mobility messages
+A new Home Address option for the Destination Options header
+A new Type 2 Routing header
+New Internet Control Message Protocol for IPv6 (ICMPv6) messages to discover the set of home agents and to obtain the prefix of the home link
+Changes to router discovery messages and options and additional Neighbor Discovery options
+Foreign Agents are no longer needed
+Definition of terms
+Home network
+The home network of a mobile device is the network within which the device receives its identifying IP address (home address).
+Home address
+The home address of a mobile device is the IP address assigned to the device within its home network.
+Foreign network
+A foreign network is the network in which a mobile node is operating when away from its home network.
+Care-of address
+The care-of address of a mobile device is th
