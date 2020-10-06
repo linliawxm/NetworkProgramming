@@ -22,49 +22,13 @@ window.title('Server')
 #Set window width and height
 window.geometry('500x500')
 
-text = tk.Text(master=window)
-text.pack(expand=True, fill="both")
+LoggingText = tk.Text(window, height=10, width = 68)
+LoggingText.place(x=10, y=100, anchor='nw')
 
-entry = tk.Entry(master=window)
-entry.pack(expand=True, fill="x")
-
-frame = tk.Frame(master=window)
-frame.pack()
-
+#Create socket with IPv4/TCP type
 serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# class ServerSocket(object):
-#     client = ''
 
-#     def __init__(self, port):
-#         self.port = port
-#         self.serversocket = socket(AF_INET, SOCK_STREAM)
-
-#     def start(self):
-#         #bind with server address and port
-#         self.serversocket.bind(("", self.port))
-#         #Start to monitor
-#         self.serversocket.listen(1)
-#         now = str(datetime.now())[:-7]
-#         text.insert("insert", "({}) : Connected.\n".format(now))
-#         #wait for client's connection
-#         self.connection, self.addr = self.serversocket.accept()
-#         self.client = self.connection
-#         data = self.connection.recv(1024)
-#         text.insert("insert", "({}) : {} connected.\n".format(str(datetime.now())[:-7], str(data)[1:]))
-
-#     def receive(self):
-#         with self.connection:
-#             while True:
-#                 #Receive message from client
-#                 message = self.connection.recv(1024)
-
-
-#     def send(self):
-#         with self.connection:
-#             self.connection.send('xxx')
-
-# srv = ServerSocket(serverPort)
 
 def StartServerThread():
     try:
@@ -72,28 +36,32 @@ def StartServerThread():
         serversocket.bind(('',serverPort))
         #Start to monitor
         serversocket.listen(1)
-        print('The server is ready to receive...')
+        LoggingText.insert('insert', 'server listening\n')
         #wait for client's connection
         connection,addr = serversocket.accept()
-
-        rcv_thread = threading.Thread(target=ReceiveDataThread,args=(connection,addr))
-        rcv_thread.setDaemon(True)
-        rcv_thread.start()
-        print('Receive threading started')
+        #print(connection, addr)
+        LoggingText.insert('insert', 'connected with {0}:{1}\n'.format(addr[0],addr[1]))
+        LoggingText.insert('insert', 'Waiting for request\n')
+        rcv_thread = threading.Thread(target=ReceiveDataThread, name = 'ReceiveDataThread', args=(connection,addr), daemon=True)
+        if not rcv_thread.is_alive():
+            rcv_thread.start()
     except socket.error as msg:
         print(msg)
     else:
-        print('Socket created.')
-
+        print('Connected')
 
 def StartServer():
-    start_thread = threading.Thread(target=StartServerThread)
-    start_thread.setDaemon(True)
-    start_thread.start()
-    print('Start threading started')
+    start_thread = threading.Thread(target=StartServerThread, name = 'StartServerThread', daemon=True)
+    if not start_thread.is_alive():
+        start_thread.start()
+        print('Start threading started')
+        #StartButton.config(text='Stop')
+    else:
+        LoggingText.insert('insert', 'server is already started\n')
 
-StartButton = tk.Button(master=frame, text='Start', font=('Arial',12), width=14, height=1, command = StartServer)
-StartButton.pack(side="left")
+
+StartButton = tk.Button(window, text='Start', font=('Arial',12), width=14, height=4, command = StartServer)
+StartButton.place(x=150, y=5, anchor='nw')
 
 
 #reqtype = ('SEARCH','REPLACE','REVERSE')
@@ -110,6 +78,7 @@ def ReceiveDataThread(connection,address):
                 message = connection.recv(1024).decode()
                 print(message)
                 if message.find('SEARCH+') != -1:
+                    LoggingText.insert('insert', 'Research request received and accepted\n')
                     request = 'SEARCH'
                     search_word = message.split('+',1)[1]
                     if search_word == '':
@@ -119,6 +88,7 @@ def ReceiveDataThread(connection,address):
                         message = 'Search request accepted'
                         status = 'WAIT_FOR_FILE_INFO'
                 elif message.find('REPLACE+') != -1:
+                    LoggingText.insert('insert', 'Replace request received and accepted\n')
                     request = 'REPLACE'
                     msg_list = message.split('+',2)
                     search_word = msg_list[1]
@@ -130,6 +100,7 @@ def ReceiveDataThread(connection,address):
                         message = 'Replace request accepted'
                         status = 'WAIT_FOR_FILE_INFO'
                 elif message =='REVERSE':
+                    LoggingText.insert('insert', 'reverse request received and accepted\n')
                     request = 'REVERSE'
                     message = 'Reverse request accepted'
                     status = 'WAIT_FOR_FILE_INFO'
@@ -143,6 +114,7 @@ def ReceiveDataThread(connection,address):
                     #Receive file name and size info
                     filename,filesize = struct.unpack('128sQ',fileinfo_data)
                     rcv_file_name = filename.decode('utf-8').strip('\x00')
+                    LoggingText.insert('insert', 'Head info received\n')
                     #Receive the data of file
                     received_size = 0
                     all_data_str = ''
@@ -156,7 +128,7 @@ def ReceiveDataThread(connection,address):
                                 received_size = filesize
                             rcv_file_handle.write(data)
                             all_data_str = all_data_str + data.decode()
-                        print('received all data of {0}'.format(rcv_file_name))
+                        LoggingText.insert('insert', 'Received all data of {0}\n'.format(rcv_file_name))
 
                     #Process the file according to request
                     if request == 'SEARCH':
@@ -165,6 +137,7 @@ def ReceiveDataThread(connection,address):
                         message = 'Hello, Client. There are {0} words found in {1}.'.format(count,rcv_file_name)
                         connection.send(message.encode())
                         status = 'WAIT_FOR_REQUEST'
+                        LoggingText.insert('insert', 'Search result sent\n')
                     elif request == 'REPLACE':
                         #Replace
                         replaced_data = all_data_str.replace(search_word,replace_word)
@@ -179,13 +152,13 @@ def ReceiveDataThread(connection,address):
                             #define file head info, including name and size
                             fhead = struct.pack('128sQ', bytes(replaced_file_name.encode('utf-8')), len(replaced_data.encode('utf-8')))
                             connection.send(fhead)
-                            print('sent file header')
+                            LoggingText.insert('insert', 'Replaced file header info sent\n')
                             #send file data to client
                             while True:
                                 send_data = new_file_handle.read(1024)
                                 print(send_data.decode())
                                 if not send_data:
-                                    print('Replaced file send over...')
+                                    LoggingText.insert('insert', 'Replaced file send over...\n')
                                     break
                                 connection.send(send_data)
                                 print(data.decode())
@@ -206,12 +179,12 @@ def ReceiveDataThread(connection,address):
                             #define file head info, including name and size
                             fhead = struct.pack('128sQ', bytes(reversed_file_name.encode('utf-8')), len(reversed_data.encode('utf-8')))
                             connection.send(fhead)
-                            print('sent file header')
+                            LoggingText.insert('insert', 'Reversed file header info sent\n')
                             #send file data to client
                             while True:
                                 send_data = new_file_handle.read(1024)
                                 if not send_data:
-                                    print('Reversed file send over...')
+                                    LoggingText.insert('insert', 'Reversed file send over...\n')
                                     break
                                 connection.send(send_data)
                         status = 'WAIT_FOR_REQUEST'
@@ -224,42 +197,7 @@ def ReceiveDataThread(connection,address):
                 status = 'WAIT_FOR_REQUEST'
 
 
-if __name__ == "__main__":
-    window.mainloop()
-    serversocket.close()
 
-
-# with socket(AF_INET, SOCK_STREAM) as serverSocket:
-#     #bind with server address and port
-#     serverSocket.bind(('',serverPort))
-#     #Start to monitor
-#     serverSocket.listen(1)
-#     print('The server is ready to receive...')
-#     #wait for client's connection
-#     connectionSocket,addr = serverSocket.accept()
-
-#     with connectionSocket:
-#         while True:
-#             #Receive message from client
-#             message = connectionSocket.recv(1024)
-
-#             #Check if empty message
-#             if not message:
-#                 break
-#             #seperating the words by using split functions
-#             words = message.split()
-#             #counting the number of words
-#             count = len(words)
-#             print('Received:' + message.decode() + ' ;Number of Words = ' + str(count) + '\n')
-#             #Change all letters to Upper case
-#             modifiedMessage = message.decode().upper()
-#             #Count the number of words from received message
-#             messageNum = str(count)
-#             #Send uppder case letters to Client
-#             connectionSocket.send(modifiedMessage.encode())
-#             #Send word number to Client
-#             connectionSocket.send(messageNum.encode())
-#     print('Connection closed')
-# print('Socket closed')
-# print('Server closed')
+window.mainloop()
+serversocket.close()
 
