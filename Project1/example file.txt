@@ -1,0 +1,5 @@
+You will develop a client and a corresponding cloud-computing server that handles one client at a time. The client asks the user for the specific file processing operation to be performed and then 
+sends the input text file and other necessary information to the server, which in turn performs the 
+desired operation on the received file and returns the output or the modified file content to the 
+client. The client program must properly display the output or store the file content, depending on 
+the operation. The client program must check for the validity of the user input.
