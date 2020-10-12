@@ -146,45 +146,51 @@ def SearchThread():
         search_word = SearchWordVar.get()
 
         request = 'SEARCH+' + search_word
-        clientSocket.send(request.encode())
-        LoggingText.insert('insert','Search request sent with search word "{0}"\n'.format(search_word))
-        #Receive message from server
-        response = clientSocket.recv(1024)
-        if response:
-            LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-            if response.decode() == 'Search request accepted':
-                filepath = SourceFilePathVar.get()
-                if os.path.isfile(filepath):
-                    #2. Send file info to server
-                    fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
-                    #define file head info, including name and size
-                    fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
-                                            os.stat(filepath).st_size)
-                    clientSocket.send(fhead)
-                    LoggingText.insert('insert', 'File header sent\n')
-                    #3. Send data to server
-                    with open(filepath, 'rb') as fp:
-                        while 1:
-                            data = fp.read(1024)
-                            if not data:
-                                LoggingText.insert('insert', 'file send over...\n')
-                                break
-                            clientSocket.send(data)
-                    #4. Receive the search result
-                    response = clientSocket.recv(1024)
-                    if response:
-                        #5. Display the search result
-                        LoggingText.insert('insert', 'Search result received\n')
-                        ProcessedFileText.delete(1.0,'end')
-                        ProcessedFileText.insert('insert',response.decode())
-                    else:
-                        isConnected = False
-                        LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
-                else:
-                    LoggingText.insert('insert','The file path is not valid')
-        else:
+        try:
+            clientSocket.send(request.encode())
+        except socket.error as msg:
+            now = str(datetime.now())[:-7]
+            LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
             isConnected = False
-            LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
+        else:
+            LoggingText.insert('insert','Search request sent with search word "{0}"\n'.format(search_word))
+            #Receive message from server
+            response = clientSocket.recv(1024)
+            if response:
+                LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
+                if response.decode() == 'Search request accepted':
+                    filepath = SourceFilePathVar.get()
+                    if os.path.isfile(filepath):
+                        #2. Send file info to server
+                        fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
+                        #define file head info, including name and size
+                        fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
+                                                os.stat(filepath).st_size)
+                        clientSocket.send(fhead)
+                        LoggingText.insert('insert', 'File header sent\n')
+                        #3. Send data to server
+                        with open(filepath, 'rb') as fp:
+                            while 1:
+                                data = fp.read(1024)
+                                if not data:
+                                    LoggingText.insert('insert', 'file send over...\n')
+                                    break
+                                clientSocket.send(data)
+                        #4. Receive the search result
+                        response = clientSocket.recv(1024)
+                        if response:
+                            #5. Display the search result
+                            LoggingText.insert('insert', 'Search result received\n')
+                            ProcessedFileText.delete(1.0,'end')
+                            ProcessedFileText.insert('insert',response.decode())
+                        else:
+                            isConnected = False
+                            LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
+                    else:
+                        LoggingText.insert('insert','The file path is not valid')
+            else:
+                isConnected = False
+                LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
     else:
         LoggingText.insert('insert', 'No connection! Please connect firstly\n')
 
@@ -196,70 +202,76 @@ def ReplaceThread():
         replace_word = ReplaceWordVar.get()
 
         request = 'REPLACE+' + search_word +'+' + replace_word
-        clientSocket.send(request.encode())
-        LoggingText.insert('insert','Replace request sent with  search word "{0}" and replace word "{1}"\n'.format(search_word,replace_word))
+        try:
+            clientSocket.send(request.encode())
+        except socket.error as msg:
+            now = str(datetime.now())[:-7]
+            LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
+            isConnected = False
+        else:
+            LoggingText.insert('insert','Replace request sent with  search word "{0}" and replace word "{1}"\n'.format(search_word,replace_word))
 
-        #Receive message from server
-        response = clientSocket.recv(1024)
-        if response:
-            LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-            if response.decode() == 'Replace request accepted':
-                filepath = SourceFilePathVar.get()
-                if os.path.isfile(filepath):
-                    #2. Send file info to server
-                    fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
-                    #define file head info, including name and size
-                    fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
-                                            os.stat(filepath).st_size)
-                    clientSocket.send(fhead)
-                    LoggingText.insert('insert', 'File header sent\n')
-                    #3. Send data to server
-                    with open(filepath, 'rb') as fp:
-                        while 1:
-                            data = fp.read(1024)
-                            if not data:
-                                LoggingText.insert('insert', 'file send over...\n')
-                                break
-                            clientSocket.send(data)
-                    #4. Receive the replace result
-                    fileinfo_size = struct.calcsize('128sQ')
-                    fileinfo_data = clientSocket.recv(fileinfo_size)
-
-                    if fileinfo_data:
-                        filename,filesize = struct.unpack('128sQ',fileinfo_data)
-                        rcv_file_name = filename.decode('utf-8').strip('\x00')
-                        LoggingText.insert('insert', '{0} header info is received and size is {1} bytes\n'.format(rcv_file_name,filesize))
-
-                        received_size = 0
-                        received_data = ''
-                        while not (received_size == filesize):
-                            if(filesize - received_size > 1024):
-                                data = clientSocket.recv(1024)
-                                if data:
-                                    received_size += len(data)
-                                else:
-                                    isConnected = False
+            #Receive message from server
+            response = clientSocket.recv(1024)
+            if response:
+                LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
+                if response.decode() == 'Replace request accepted':
+                    filepath = SourceFilePathVar.get()
+                    if os.path.isfile(filepath):
+                        #2. Send file info to server
+                        fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
+                        #define file head info, including name and size
+                        fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
+                                                os.stat(filepath).st_size)
+                        clientSocket.send(fhead)
+                        LoggingText.insert('insert', 'File header sent\n')
+                        #3. Send data to server
+                        with open(filepath, 'rb') as fp:
+                            while 1:
+                                data = fp.read(1024)
+                                if not data:
+                                    LoggingText.insert('insert', 'file send over...\n')
                                     break
+                                clientSocket.send(data)
+                        #4. Receive the replace result
+                        fileinfo_size = struct.calcsize('128sQ')
+                        fileinfo_data = clientSocket.recv(fileinfo_size)
+
+                        if fileinfo_data:
+                            filename,filesize = struct.unpack('128sQ',fileinfo_data)
+                            rcv_file_name = filename.decode('utf-8').strip('\x00')
+                            LoggingText.insert('insert', '{0} header info is received and size is {1} bytes\n'.format(rcv_file_name,filesize))
+
+                            received_size = 0
+                            received_data = ''
+                            while not (received_size == filesize):
+                                if(filesize - received_size > 1024):
+                                    data = clientSocket.recv(1024)
+                                    if data:
+                                        received_size += len(data)
+                                    else:
+                                        isConnected = False
+                                        break
+                                else:
+                                    data = clientSocket.recv(filesize - received_size)
+                                    if data:
+                                        received_size = filesize
+                                    else:
+                                        isConnected = False
+                                        break
+                                received_data = received_data + data.decode()
+                            if isConnected:
+                                LoggingText.insert('insert', 'Replaced file {0} is received\n'.format(rcv_file_name))
+                                #5. Display the replaced result
+                                ProcessedFileText.delete(1.0,'end')
+                                ProcessedFileText.insert('insert', received_data)
                             else:
-                                data = clientSocket.recv(filesize - received_size)
-                                if data:
-                                    received_size = filesize
-                                else:
-                                    isConnected = False
-                                    break
-                            received_data = received_data + data.decode()
-                        if isConnected:
-                            LoggingText.insert('insert', 'Replaced file {0} is received\n'.format(rcv_file_name))
-                            #5. Display the replaced result
-                            ProcessedFileText.delete(1.0,'end')
-                            ProcessedFileText.insert('insert', received_data)
-                        else:
-                            LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
+                                LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
+                    else:
+                        LoggingText.insert('insert', 'The file path is not valid\n')
                 else:
-                    LoggingText.insert('insert', 'The file path is not valid\n')
-            else:
-                isConnected = False
-                LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
+                    isConnected = False
+                    LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
     else:
         LoggingText.insert('insert', 'No connection! Please connect firstly\n')
 
@@ -268,68 +280,74 @@ def ReverseThread():
     if isConnected:
         #1.Send request to server
         request = 'REVERSE'
-        clientSocket.send(request.encode())
-        LoggingText.insert('insert','Reverse request sent\n')
-        #Receive message from server
-        response = clientSocket.recv(1024)
-        if response:
-            LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-            if response.decode() == 'Reverse request accepted':
-                filepath = SourceFilePathVar.get()
-                if os.path.isfile(filepath):
-                    #2. Send file info to server
-                    fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
-                    #define file head info, including name and size
-                    fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
-                                            os.stat(filepath).st_size)
-                    clientSocket.send(fhead)
-                    LoggingText.insert('insert', 'File header sent\n')
-                    #3. Send data to server
-                    with open(filepath, 'rb') as fp:
-                        while 1:
-                            data = fp.read(1024)
-                            if not data:
-                                LoggingText.insert('insert', 'file send over...\n')
-                                break
-                            clientSocket.send(data)
-                    #4. Receive the reversed result
-                    fileinfo_size = struct.calcsize('128sQ')
-                    fileinfo_data = clientSocket.recv(fileinfo_size)
-
-                    if fileinfo_data:
-                        filename,filesize = struct.unpack('128sQ',fileinfo_data)
-                        LoggingText.insert('insert', 'file header info is received\n')
-
-                        received_size = 0
-                        received_data = ''
-                        while not (received_size == filesize):
-                            if(filesize - received_size > 1024):
-                                data = clientSocket.recv(1024)
-                                if data:
-                                    received_size += len(data)
-                                else:
-                                    isConnected = False
-                                    break
-                            else:
-                                data = clientSocket.recv(filesize - received_size)
-                                if data:
-                                    received_size = filesize
-                                else:
-                                    isConnected = False
-                                    break
-                            received_data = received_data + data.decode()
-                        if isConnected:
-                            LoggingText.insert('insert', 'Reversed file is received\n')
-                            #5. Display the replaced result
-                            ProcessedFileText.delete(1.0,'end')
-                            ProcessedFileText.insert('insert', received_data)
-                        else:
-                            LoggingText.insert('insert', 'No connection! Please connect firstly\n')
-                else:
-                    LoggingText.insert('insert','The file path is not valid')
-        else:
+        try:
+            clientSocket.send(request.encode())
+        except socket.error as msg:
+            now = str(datetime.now())[:-7]
+            LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
             isConnected = False
-            LoggingText.insert('insert', 'No connection! Please connect firstly\n')
+        else:
+            LoggingText.insert('insert','Reverse request sent\n')
+            #Receive message from server
+            response = clientSocket.recv(1024)
+            if response:
+                LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
+                if response.decode() == 'Reverse request accepted':
+                    filepath = SourceFilePathVar.get()
+                    if os.path.isfile(filepath):
+                        #2. Send file info to server
+                        fileinfo_size = struct.calcsize('128sQ')    #file name lentgh = 128 bytes; filesize = 8bytes
+                        #define file head info, including name and size
+                        fhead = struct.pack('128sQ', bytes(os.path.basename(filepath).encode('utf-8')),
+                                                os.stat(filepath).st_size)
+                        clientSocket.send(fhead)
+                        LoggingText.insert('insert', 'File header sent\n')
+                        #3. Send data to server
+                        with open(filepath, 'rb') as fp:
+                            while 1:
+                                data = fp.read(1024)
+                                if not data:
+                                    LoggingText.insert('insert', 'file send over...\n')
+                                    break
+                                clientSocket.send(data)
+                        #4. Receive the reversed result
+                        fileinfo_size = struct.calcsize('128sQ')
+                        fileinfo_data = clientSocket.recv(fileinfo_size)
+
+                        if fileinfo_data:
+                            filename,filesize = struct.unpack('128sQ',fileinfo_data)
+                            LoggingText.insert('insert', 'file header info is received\n')
+
+                            received_size = 0
+                            received_data = ''
+                            while not (received_size == filesize):
+                                if(filesize - received_size > 1024):
+                                    data = clientSocket.recv(1024)
+                                    if data:
+                                        received_size += len(data)
+                                    else:
+                                        isConnected = False
+                                        break
+                                else:
+                                    data = clientSocket.recv(filesize - received_size)
+                                    if data:
+                                        received_size = filesize
+                                    else:
+                                        isConnected = False
+                                        break
+                                received_data = received_data + data.decode()
+                            if isConnected:
+                                LoggingText.insert('insert', 'Reversed file is received\n')
+                                #5. Display the replaced result
+                                ProcessedFileText.delete(1.0,'end')
+                                ProcessedFileText.insert('insert', received_data)
+                            else:
+                                LoggingText.insert('insert', 'No connection! Please connect firstly\n')
+                    else:
+                        LoggingText.insert('insert','The file path is not valid')
+            else:
+                isConnected = False
+                LoggingText.insert('insert', 'No connection! Please connect firstly\n')
     else:
         LoggingText.insert('insert', 'No connection! Please connect firstly\n')
 
