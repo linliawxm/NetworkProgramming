@@ -81,7 +81,6 @@ def StartServer():
     if not start_thread.is_alive():
         start_thread.start()
         print('Start threading started')
-        #StartButton.config(text='Stop')
     else:
         LoggingText.insert('insert', 'server is already started\n')
 
