@@ -102,9 +102,8 @@ def UpdateLoggingToEnd():
         LoggingText.see('end')
         time.sleep(0.5)
 
-UpdateLogging_thread = threading.Thread(target=UpdateLoggingToEnd, name = 'UpdateLoggingthread', daemon=True)
-if not UpdateLogging_thread.is_alive():
-    UpdateLogging_thread.start()
+#UpdateLogging_thread = threading.Thread(target=UpdateLoggingToEnd, name = 'UpdateLoggingthread', daemon=True)
+#UpdateLogging_thread.start()
 
 #Socket created
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -150,259 +149,60 @@ def ExitProcess():
 ExitButton = tk.Button(window, text='Exit', font=('Arial',12), width=10, height=2, command = ExitProcess)
 ExitButton.place(x=10, y=70, anchor='nw')
 
-def SearchThread():
+def RequestThread(ReqType,ReqMsg):
     global isConnected
     record = []
     if isConnected:
         startTime = datetime.now()
         record.append(startTime)
-        #1.Send request to server
-        search_word = SearchWordVar.get()
-
-        request = 'SEARCH+' + search_word
-        record.append('Search')
+        record.append(ReqType)
         try:
-            clientSocket.send(request.encode())
+            #Send request to server
+            clientSocket.send(ReqMsg.encode())
         except socket.error as msg:
             now = str(datetime.now())[:-7]
             LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
             isConnected = False
         else:
-            LoggingText.insert('insert','Search request sent with search word "{0}"\n'.format(search_word))
-            #Receive reply from server
-            response = clientSocket.recv(1024)
-            if response:
-                LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-                if response.decode() == 'Search request accepted':
-                    filepath = SourceFilePathVar.get()
-                    filename = os.path.basename(filepath)
-                    filesize = os.stat(filepath).st_size
-                    record.append(filesize)
-                    print('Source file size:{}'.format(filesize))
-                    if os.path.isfile(filepath):
-                        #2. Send file info to server
-                        fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes; I:unsigned int for compression
-                        #define file head info, including name and size
-                        if IsCompressedVar.get() == 1:
-                            with zipfile.ZipFile('Search.zip', 'w', zipfile.ZIP_DEFLATED) as f:
-                                f.write(filename)
-                            filepath = 'Search.zip'
-                            filename = 'Search.zip'
-                            filesize = os.stat('Search.zip').st_size
-                            record.append(filesize)
-                            print('Compressed file size:{}'.format(filesize))
-                        else:
-                            record.append('None')
-                        fhead = struct.pack('128sQI', bytes(filename.encode('utf-8')), filesize, IsCompressedVar.get())
-                        clientSocket.send(fhead)
-                        LoggingText.insert('insert', 'Search file header sent\n')
-
-                        sendStartTime = datetime.now()
-                        with open(filepath, 'rb') as fp:
-                            data = fp.read()
-                            #3. Send data to server
-                            clientSocket.sendall(data)
-                            LoggingText.insert('insert', 'Search file send over...\n')
-
-                        sendoverTime = datetime.now()
-                        sendoverDetal = sendoverTime - sendStartTime
-                        record.append(sendoverDetal)
-
-                        #4. Receive the search result
-                        response = clientSocket.recv(1024)
-                        if response:
-                            #5. Display the search result
-                            LoggingText.insert('insert', 'Search result received\n')
-                            ProcessedFileText.delete(1.0,'end')
-                            ProcessedFileText.insert('insert',response.decode())
-                        else:
-                            isConnected = False
-                            LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
-                        searchoverTime = datetime.now()
-                        searchoverDetal = searchoverTime - sendStartTime
-                        record.append(searchoverDetal)
-                    else:
-                        LoggingText.insert('insert','The file path is not valid')
-            else:
-                isConnected = False
-                LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
-    else:
-        LoggingText.insert('insert', 'No connection! Please connect firstly\n')
-    print('Search threading ended')
-
-    with open('Record.txt','a') as f:
-        recordValue = " ".join([str(elem) for elem in record])
-        f.write(recordValue)
-        f.write('\n')
-
-def ReplaceThread():
-    global isConnected
-    record = []
-    if isConnected:
-        startTime = datetime.now()
-        record.append(startTime)
-        #1.Send request to server
-        search_word = SearchWordVar.get()
-        replace_word = ReplaceWordVar.get()
-        record.append('Replace')
-        request = 'REPLACE+' + search_word +'+' + replace_word
-        try:
-            clientSocket.send(request.encode())
-        except socket.error as msg:
-            now = str(datetime.now())[:-7]
-            LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
-            isConnected = False
-        else:
-            LoggingText.insert('insert','Replace request sent with  search word "{0}" and replace word "{1}"\n'.format(search_word,replace_word))
-
+            LoggingText.insert('insert','{} request sent\n'.format(ReqType))
             #Receive message from server
             response = clientSocket.recv(1024)
             if response:
                 LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-                if response.decode() == 'Replace request accepted':
+                expectedResponse = '{} request accepted'.format(ReqType)
+                if response.decode() == expectedResponse:
                     filepath = SourceFilePathVar.get()
                     filename = os.path.basename(filepath)
                     filesize = os.stat(filepath).st_size
                     record.append(filesize)
                     if os.path.isfile(filepath):
-                        #2. Send file info to server
+                        #Send file info to server
                         fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes;IsCompressed = 4bytes(int)
                         #define file head info, including name and size
                         if IsCompressedVar.get() == 1:
-                            with zipfile.ZipFile('Replace.zip', 'w', zipfile.ZIP_DEFLATED) as f:
+                            zipfilename = filename.split('.')[0] + '.zip'
+                            with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
                                 f.write(filename)
-                            filepath = 'Replace.zip'
-                            filename = 'Replace.zip'
-                            filesize = os.stat('Replace.zip').st_size
+                            filepath = zipfilename
+                            filename = zipfilename
+                            filesize = os.stat(filepath).st_size
                             record.append(filesize)
                         else:
                             record.append('None')
                         fhead = struct.pack('128sQI', bytes(filename.encode('utf-8')), filesize, IsCompressedVar.get())
                         clientSocket.send(fhead)
-                        LoggingText.insert('insert', 'Replace file header sent\n')
+                        LoggingText.insert('insert', '{} file header sent\n'.format(ReqType))
 
                         sendStartTime = datetime.now()
-                        #3. Send data to server
+                        #Send data to server
                         with open(filepath, 'rb') as fp:
                             data = fp.read()
                             clientSocket.sendall(data)
-                            LoggingText.insert('insert', 'Replace file send over...\n')
+                            LoggingText.insert('insert', '{} file send over...\n'.format(ReqType))
                         sendoverTime = datetime.now()
                         sendoverDetal = sendoverTime - sendStartTime
                         record.append(sendoverDetal)
-                        #4. Receive the replace result
-                        fileinfo_size = struct.calcsize('128sQI')
-                        fileinfo_data = clientSocket.recv(fileinfo_size)
-
-                        if fileinfo_data:
-                            filename,filesize,IsCompressed = struct.unpack('128sQI',fileinfo_data)
-                            rcv_file_name = filename.decode('utf-8').strip('\x00')
-                            LoggingText.insert('insert', '{0} header info is received and size is {1} bytes\n'.format(rcv_file_name,filesize))
-
-                            received_size = 0
-                            with open(rcv_file_name, 'wb') as rcv_file_handle:
-                                while not (received_size == filesize):
-                                    if(filesize - received_size > 1024):
-                                        data = clientSocket.recv(1024)
-                                        if data:
-                                            received_size += len(data)
-                                        else:
-                                            isConnected = False
-                                            break
-                                    else:
-                                        data = clientSocket.recv(filesize - received_size)
-                                        if data:
-                                            received_size = filesize
-                                        else:
-                                            isConnected = False
-                                            break
-                                    rcv_file_handle.write(data)
-
-                            replaceoverTime = datetime.now()
-                            replaceoverDetal = replaceoverTime - sendStartTime
-                            record.append(replaceoverDetal)
-
-                            if isConnected:
-                                if IsCompressed:
-                                    with zipfile.ZipFile(rcv_file_name, 'r') as zf:
-                                        filepath = zf.extract(zf.namelist()[0]) #suppose only one file
-                                        rcv_file_name = os.path.basename(filepath)
-                                        print(rcv_file_name)
-
-                                with open(rcv_file_name,'rb') as rf:
-                                    all_data_str = rf.read().decode('utf-8')
-
-                                LoggingText.insert('insert', 'Replaced file {0} is received\n'.format(rcv_file_name))
-                                #5. Display the replaced result
-                                ProcessedFileText.delete(1.0,'end')
-                                ProcessedFileText.insert('insert', all_data_str)
-                            else:
-                                LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
-                    else:
-                        LoggingText.insert('insert', 'The file path is not valid\n')
-                else:
-                    isConnected = False
-                    LoggingText.insert('insert', 'Server connection closed! Please check if server is still running\n')
-    else:
-        LoggingText.insert('insert', 'No connection! Please connect firstly\n')
-    print('Replace threading ended')
-    with open('Record.txt','a') as f:
-        recordValue = " ".join([str(elem) for elem in record])
-        f.write(recordValue)
-        f.write('\n')
-def ReverseThread():
-    global isConnected
-    record = []
-    if isConnected:
-        startTime = datetime.now()
-        record.append(startTime)
-        #1.Send request to server
-        request = 'REVERSE'
-        record.append('Reverse')
-        try:
-            clientSocket.send(request.encode())
-        except socket.error as msg:
-            now = str(datetime.now())[:-7]
-            LoggingText.insert('insert','{0}: Server Connected failed({1})\n'.format(now,msg))
-            isConnected = False
-        else:
-            LoggingText.insert('insert','Reverse request sent\n')
-            #Receive message from server
-            response = clientSocket.recv(1024)
-            if response:
-                LoggingText.insert('insert', 'Response from server: {0} \n'.format(response.decode('utf-8')))
-                if response.decode() == 'Reverse request accepted':
-                    filepath = SourceFilePathVar.get()
-                    filename = os.path.basename(filepath)
-                    filesize = os.stat(filepath).st_size
-                    record.append(filesize)
-                    if os.path.isfile(filepath):
-                        #2. Send file info to server
-                        fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes;IsCompressed = 4bytes(int)
-                        #define file head info, including name and size
-                        if IsCompressedVar.get() == 1:
-                            with zipfile.ZipFile('Reverse.zip', 'w', zipfile.ZIP_DEFLATED) as f:
-                                f.write(filename)
-                            filepath = 'Reverse.zip'
-                            filename = 'Reverse.zip'
-                            filesize = os.stat('Reverse.zip').st_size
-                            record.append(filesize)
-                        else:
-                            record.append('None')
-                        fhead = struct.pack('128sQI', bytes(filename.encode('utf-8')), filesize, IsCompressedVar.get())
-                        clientSocket.send(fhead)
-                        LoggingText.insert('insert', 'Reverse file header sent\n')
-
-                        sendStartTime = datetime.now()
-                        #3. Send data to server
-                        with open(filepath, 'rb') as fp:
-                            data = fp.read()
-                            clientSocket.sendall(data)
-                            LoggingText.insert('insert', 'Reverse file send over...\n')
-                        sendoverTime = datetime.now()
-                        sendoverDetal = sendoverTime - sendStartTime
-                        record.append(sendoverDetal)
-                        #4. Receive the reversed result
+                        #4. Receive the processed result
                         fileinfo_size = struct.calcsize('128sQI')
                         fileinfo_data = clientSocket.recv(fileinfo_size)
 
@@ -436,13 +236,13 @@ def ReverseThread():
                                 if IsCompressed:
                                     with zipfile.ZipFile(rcv_file_name, 'r') as zf:
                                         filepath = zf.extract(zf.namelist()[0]) #suppose only one file
-                                        rcv_file_name = os.path.basename(filepath)
-                                        print(rcv_file_name)
+                                        #rcv_file_name = os.path.basename(filepath)
+                                        rcv_file_name = filepath
 
                                 with open(rcv_file_name,'rb') as rf:
                                     all_data_str = rf.read().decode('utf-8')
 
-                                LoggingText.insert('insert', 'Reversed file is received\n')
+                                LoggingText.insert('insert', 'Processed file is received\n')
                                 #5. Display the replaced result
                                 ProcessedFileText.delete(1.0,'end')
                                 ProcessedFileText.insert('insert', all_data_str)
@@ -455,35 +255,45 @@ def ReverseThread():
                 LoggingText.insert('insert', 'No connection! Please connect firstly\n')
     else:
         LoggingText.insert('insert', 'No connection! Please connect firstly\n')
-    print('Reverse threading ended')
+    print('Request thread for {} ended'.format(ReqType))
     with open('Record.txt','a') as f:
         recordValue = " ".join([str(elem) for elem in record])
         f.write(recordValue)
         f.write('\n')
-        
+
 def SearchWordFromServer():
-    search_thread = threading.Thread(target=SearchThread, name='SearchThread')
-    search_thread.setDaemon(True)
+    ReqType = 'Search'
+    search_word = SearchWordVar.get()
+    ReqMsg = 'SEARCH+' + search_word
+    search_thread = threading.Thread(target=RequestThread, name='RequestThread', args=(ReqType,ReqMsg), daemon=True)
+    #search_thread.setDaemon(True)
     search_thread.start()
-    print('Search threading started')
+    print('RequestThread started for Search function')
 
 SearchButton = tk.Button(window, text='Search', font=('Arial',12), width=14, height=2, command = SearchWordFromServer)
 SearchButton.place(x=150, y=5, anchor='nw')
 
 def ReplaceWordByServer():
-    replace_thread = threading.Thread(target=ReplaceThread, name='replace_thread')
-    replace_thread.setDaemon(True)
+    ReqType = 'Replace'
+    search_word = SearchWordVar.get()
+    replace_word = ReplaceWordVar.get()
+    ReqMsg = 'REPLACE+' + search_word +'+' + replace_word
+
+    replace_thread = threading.Thread(target=RequestThread, name='RequestThread', args=(ReqType,ReqMsg), daemon=True)
+    #replace_thread.setDaemon(True)
     replace_thread.start()
-    print('Replace threading started')
+    print('RequestThread started for Replace function')
 
 ReplaceButton = tk.Button(window, text='Replace', font=('Arial',12), width=14, height=2, command = ReplaceWordByServer)
 ReplaceButton.place(x=300, y=5, anchor='nw')
 
 def ReverseWordByServer():
-    reverse_thread = threading.Thread(target=ReverseThread, name='reverse_thread')
-    reverse_thread.setDaemon(True)
+    ReqType = 'Reverse'
+    ReqMsg = 'REVERSE'
+    reverse_thread = threading.Thread(target=RequestThread, name='RequestThread', args=(ReqType,ReqMsg), daemon=True)
+    #reverse_thread.setDaemon(True)
     reverse_thread.start()
-    print('Reverse threading started')
+    print('RequestThread started for Reverse function')
 
 ReverseButton = tk.Button(window, text='Reverse', font=('Arial',12), width=14, height=2, command = ReverseWordByServer)
 ReverseButton.place(x=450, y=5, anchor='nw')

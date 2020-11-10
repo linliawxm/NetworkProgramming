@@ -15,8 +15,9 @@ import time
 import struct
 import re
 import zipfile
+import csv
 
-serverPortBase = 12000
+serverPort = 12000
 
 #Create main window
 window = tk.Tk()
@@ -49,48 +50,52 @@ IsCompressedVar = tk.IntVar()
 checkButton = tk.Checkbutton(window, text='Send compressed file ',variable=IsCompressedVar, onvalue=1, offvalue=0)
 checkButton.place(x=750, y=30, anchor='nw')
 
+serverStarted = False
 
 def StartServerThread():
-    portIndex = 0
+    global serverStarted
+    serverStarted = True
+    LoggingText.insert('insert', 'Server Started\n')
     try:
         while True:
             #Create socket with IPv4/TCP type
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serversocket:
                 #bind with server address and port
-                serversocket.bind(('',serverPortBase + portIndex))
+                serversocket.bind(('',serverPort))
                 #Start to monitor
                 serversocket.listen(1)
-                LoggingText.insert('insert', 'Waiting for connection\n')
+
                 #wait for client's connection
                 connection,addr = serversocket.accept()
                 #print(connection, addr)
                 LoggingText.insert('insert', 'connected with {0}:{1}\n'.format(addr[0],addr[1]))
-                LoggingText.insert('insert', 'Waiting for request\n')
-                rcv_thread = threading.Thread(target=ReceiveDataThread, name = 'Thread{}'.format(serverPortBase + portIndex), args=(connection,addr), daemon=True)
+                LoggingText.insert('insert', 'Waiting for request from {}:{}\n'.format(addr[0],addr[1]))
+                rcv_thread = threading.Thread(target=ReceiveDataThread, name = 'Thread{}'.format(addr[1]), args=(connection,addr), daemon=True)
                 rcv_thread.start()
-                portIndex = portIndex + 1
 
     except socket.error as msg:
         print(msg)
+        LoggingText.insert('insert', 'Server error:{}. Server closed\n'.format(msg))
     else:
-        print("Start thread finished")
+        print("Server closed")
+        LoggingText.insert('insert', 'Server closed\n')
+    serverStarted = False
 
 def UpdateLoggingToEnd():
     while True:
         LoggingText.see('end')
         time.sleep(0.5)
 
+#UpdateLogging_thread = threading.Thread(target=UpdateLoggingToEnd, name = 'UpdateLoggingthread', daemon=True)
+#UpdateLogging_thread.start()
+
 def StartServer():
-    start_thread = threading.Thread(target=StartServerThread, name = 'StartServerThread', daemon=True)
-    if not start_thread.is_alive():
+    global serverStarted
+    if serverStarted == False:
+        start_thread = threading.Thread(target=StartServerThread, name = 'StartServerThread', daemon=True)
         start_thread.start()
-        print('Start threading started')
     else:
         LoggingText.insert('insert', 'server is already started\n')
-
-    UpdateLogging_thread = threading.Thread(target=UpdateLoggingToEnd, name = 'UpdateLoggingthread', daemon=True)
-    if not UpdateLogging_thread.is_alive():
-        UpdateLogging_thread.start()
 
 
 StartButton = tk.Button(window, text='Start', font=('Arial',12), width=14, height=4, command = StartServer)
@@ -103,6 +108,19 @@ def ReceiveDataThread(connection,address):
     request = ''
     search_word = ''
     replace_word = ''
+    clientIp = address[0]
+    clientPort = address[1]
+    foldername = str(clientIp)+'_'+str(clientPort)
+    isExisting = os.path.exists(foldername)
+    if not isExisting:
+        os.makedirs(foldername)
+
+    recordFilename = os.path.join('./{}/'.format(foldername), foldername + "record.csv")
+    with open(recordFilename,'w') as csv_record:
+        csv_write = csv.writer(csv_record)
+        csv_head = ['Client','StartTime','RequestType','ReceivedDuration','UnzipDuration','ReadDuration','ProcessDuration','StoreDuration','ZipDuration','ReplyDuration','TotalDuration']
+        csv_write.writerow(csv_head)
+
     with connection:
         status = 'WAIT_FOR_REQUEST'
         while isConnected:
@@ -115,8 +133,15 @@ def ReceiveDataThread(connection,address):
                     break
                 message = message.decode()
                 print(message)
+
+                record = [foldername]
+
+                startTime = datetime.now()
+                record.append('\'' + str(startTime))
+                reqType = ''
                 if message.find('SEARCH+') != -1:
-                    LoggingText.insert('insert', 'Search request received and accepted\n')
+                    reqType = 'Search'
+                    LoggingText.insert('insert', '{}:{} Search request received and accepted\n'.format(clientIp,clientPort))
                     request = 'SEARCH'
                     search_word = message.split('+',1)[1]
                     if search_word == '':
@@ -127,7 +152,8 @@ def ReceiveDataThread(connection,address):
                         status = 'WAIT_FOR_FILE_INFO'
                     connection.send(message.encode())
                 elif message.find('REPLACE+') != -1:
-                    LoggingText.insert('insert', 'Replace request received and accepted\n')
+                    reqType = 'Replace'
+                    LoggingText.insert('insert', '{}:{} Replace request received and accepted\n'.format(clientIp,clientPort))
                     request = 'REPLACE'
                     msg_list = message.split('+',2)
                     search_word = msg_list[1]
@@ -140,17 +166,21 @@ def ReceiveDataThread(connection,address):
                         status = 'WAIT_FOR_FILE_INFO'
                     connection.send(message.encode())
                 elif message =='REVERSE':
-                    LoggingText.insert('insert', 'reverse request received and accepted\n')
+                    reqType = 'Reverse'
+                    LoggingText.insert('insert', '{}:{} Reverse request received and accepted\n'.format(clientIp,clientPort))
                     request = 'REVERSE'
                     message = 'Reverse request accepted'
                     connection.send(message.encode())
                     status = 'WAIT_FOR_FILE_INFO'
                 elif message == 'EXIT':
-                    LoggingText.insert('insert', 'Exit request received\n')
+                    reqType = 'Exit'
+                    LoggingText.insert('insert', '{}:{} Exit request received\n'.format(clientIp,clientPort))
                     connection.close()
                     isConnected = False
                 else:
+                    reqType = 'Unknown'
                     message ='unrecognized request!'
+                record.append(reqType)
             elif (status == 'WAIT_FOR_FILE_INFO'):
                 fileinfo_size = struct.calcsize('128sQI')
                 fileinfo_data = connection.recv(fileinfo_size)
@@ -160,14 +190,13 @@ def ReceiveDataThread(connection,address):
                 #Receive file name and size info
                 filename,filesize,IsCompressed = struct.unpack('128sQI',fileinfo_data) #file name lentgh = 128 bytes; filesize = 8bytes; I:unsigned int for compression
                 rcv_file_name = filename.decode('utf-8').strip('\x00')
-                LoggingText.insert('insert', 'Head info received\n')
+                LoggingText.insert('insert', '{}:{} Header info received\n'.format(clientIp,clientPort))
 
                 #Receive the data of file
                 received_size = 0
-                all_data_str = ''
-                #Clear the content firstly
-                ReceivedText.delete(1.0,'end')
-                with open(rcv_file_name, 'wb') as rcv_file_handle:
+                rcvStartTime = datetime.now()
+                pre_process_file = os.path.join('./{}/'.format(foldername), rcv_file_name)
+                with open(pre_process_file, 'wb') as rcv_file_handle:
                     while not (received_size == filesize):
                         if(filesize - received_size > 1024):
                             data = connection.recv(1024)
@@ -180,98 +209,120 @@ def ReceiveDataThread(connection,address):
                             received_size = filesize
                         rcv_file_handle.write(data)
 
-                if isConnected == False:
-                    LoggingText.insert('insert', '{0} file transfer failed\n'.format(rcv_file_name))
-                else:
-                    LoggingText.insert('insert', 'Received all data of {0}\n'.format(rcv_file_name))
-                    ProcessedText.delete(1.0,'end')
-                    if IsCompressed:
-                        with zipfile.ZipFile(rcv_file_name, 'r') as zf:
-                            filepath = zf.extract(zf.namelist()[0]) #suppose only one file
-                            rcv_file_name = os.path.basename(filepath)
-                            print(rcv_file_name)
+                rcvEndTime = datetime.now()
+                rcvDelta = rcvEndTime - rcvStartTime
+                #record.append('\'' + str(rcvDelta))
+                record.append('\'' + str(rcvEndTime))
 
-                    with open(rcv_file_name,'rb') as rf:
+                if isConnected == False:
+                    LoggingText.insert('insert', '{}:{} {} file transfer failed\n'.format(clientIp, clientPort, rcv_file_name))
+                else:
+                    LoggingText.insert('insert', '{}:{} Received all data of {}\n'.format(clientIp, clientPort, rcv_file_name))
+                    #Check if the received file is compressed
+                    if IsCompressed:
+                        upzipStartTime = datetime.now()
+                        with zipfile.ZipFile(pre_process_file, 'r') as zf:
+                            filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
+                            pre_process_file = filepath
+                        upzipDelta = datetime.now()-upzipStartTime
+                        #record.append('\'' + str(upzipDelta))
+                        record.append('\'' + str(datetime.now()))
+                    else:
+                        record.append('None')
+
+                    readStartTime = datetime.now()
+                    #Read out the data from file
+                    all_data_str = 'No Data'
+                    with open(pre_process_file,'rb') as rf:
                         all_data_str = rf.read().decode('utf-8')
+                    readDelta = datetime.now()-readStartTime
+                    #record.append('\'' + str(readDelta))
+                    record.append('\'' + str(datetime.now()))
+
+                    #Write data to GUI ReceivedText field
+                    ReceivedText.delete(1.0,'end')
                     ReceivedText.insert('insert',all_data_str)
 
-                    #Process the file according to request
+                    processStartTime = datetime.now()
+                    #Process data according to request
                     if request == 'SEARCH':
                         #Search
                         count = all_data_str.count(search_word)
-                        message = 'There are {0} words "{1}" found in {2}.'.format(count,search_word,rcv_file_name)
-                        ProcessedText.insert('insert','There are {0} words "{1}" found in {2}'.format(count,search_word,rcv_file_name))
-                        connection.send(message.encode())
-                        status = 'WAIT_FOR_REQUEST'
-                        LoggingText.insert('insert', 'Search result sent\n')
+                        processed_data = 'There are {} words "{}" found in {}.'.format(count,search_word,rcv_file_name)
+                        processed_file_name = os.path.join('./{}/'.format(foldername), 'SearchResult_' + rcv_file_name)
                     elif request == 'REPLACE':
                         #Replace
-                        replaced_data = all_data_str.replace(search_word,replace_word)
-                        replaced_file_name = os.path.join('./', 'Replaced_' + rcv_file_name)
-                        ProcessedText.insert('insert',replaced_data)
-                        #Store local file
-                        with open(replaced_file_name, 'wb') as new_file_handle:
-                            new_file_handle.write(replaced_data.encode())
-                        if IsCompressedVar.get() == 1:
-                            with zipfile.ZipFile('Replaced.zip', 'w', zipfile.ZIP_DEFLATED) as f:
-                                f.write(replaced_file_name)
-                            filepath = 'Replaced.zip'
-                            replaced_file_name = 'Replaced.zip'
-                            filesize = os.stat('Replaced.zip').st_size
-                        else:
-                            filesize = os.stat(replaced_file_name).st_size
-
-                        with open(replaced_file_name, 'rb') as new_file_handle:
-                            #Send file info to client
-                            fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes; isCompressed = 2bytes(int)
-                            #define file head info, including name and size
-                            fhead = struct.pack('128sQI', bytes(replaced_file_name.encode('utf-8')), filesize, IsCompressedVar.get())
-                            connection.send(fhead)
-                            LoggingText.insert('insert', 'Replaced file header info sent\n')
-                            #send file data to client
-                            send_data = new_file_handle.read()
-                            connection.sendall(send_data)
-                            LoggingText.insert('insert', 'Replaced file send over...\n')
-                        status = 'WAIT_FOR_REQUEST'
-
+                        processed_data = all_data_str.replace(search_word,replace_word)
+                        processed_file_name = os.path.join('./{}/'.format(foldername), 'ReplaceResult_' + rcv_file_name)
                     elif request == 'REVERSE':
                         #Reverse
                         data_str_list = all_data_str.split()
-                        reversed_data = ' '.join(reversed(data_str_list))
-                        ProcessedText.insert('insert',reversed_data)
-                        reversed_file_name = os.path.join('./', 'Replaced_' + rcv_file_name)
-                        #Store local file
-                        with open(reversed_file_name, 'wb') as new_file_handle:
-                            new_file_handle.write(reversed_data.encode())
-                        if IsCompressedVar.get() == 1:
-                            with zipfile.ZipFile('Reversed.zip', 'w', zipfile.ZIP_DEFLATED) as f:
-                                f.write(reversed_file_name)
-                            filepath = 'Reversed.zip'
-                            reversed_file_name = 'Reversed.zip'
-                            filesize = os.stat('Reversed.zip').st_size
-                        else:
-                            filesize = os.stat(reversed_file_name).st_size
-
-                        with open(reversed_file_name, 'rb') as new_file_handle:
-                            #Send file info to client
-                            fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes
-                            #define file head info, including name and size
-                            fhead = struct.pack('128sQI', bytes(reversed_file_name.encode('utf-8')), filesize, IsCompressedVar.get())
-                            connection.send(fhead)
-                            LoggingText.insert('insert', 'Reversed file header info sent\n')
-                            #send file data to client
-                            send_data = new_file_handle.read()
-                            connection.sendall(send_data)
-                            LoggingText.insert('insert', 'Reversed file send over...\n')
-                        status = 'WAIT_FOR_REQUEST'
+                        processed_data = ' '.join(reversed(data_str_list))
+                        processed_file_name = os.path.join('./{}/'.format(foldername), 'ReverseResult_' + rcv_file_name)
                     else:
-                        message = 'unrecognized request!'
-                        status = 'WAIT_FOR_REQUEST'
+                        processed_data = 'unknown request!'
+                        processed_file_name = os.path.join('./{}/'.format(foldername), 'unknowRequest.txt')
+                    processDuration = datetime.now()-processStartTime
+                    #record.append('\'' + str(processDuration))
+                    record.append('\'' + str(datetime.now()))
 
+                    ProcessedText.delete(1.0,'end')
+                    ProcessedText.insert('insert',processed_data)
+
+                    storeStartTime = datetime.now()
+                    #Store local file
+                    with open(processed_file_name, 'wb') as new_file_handle:
+                        new_file_handle.write(processed_data.encode())
+                    storeDuration = datetime.now() - storeStartTime
+                    #record.append('\'' + str(storeDuration))
+                    record.append('\'' + str(datetime.now()))
+
+                    #Check if send compressed file
+                    if IsCompressedVar.get() == 1:
+                        zipStartTime = datetime.now()
+                        compressFileName = os.path.join('./{}/'.format(foldername),'Processed.zip')
+                        with zipfile.ZipFile(compressFileName, 'w', zipfile.ZIP_DEFLATED) as f:
+                            f.write(processed_file_name)
+                        filepath = compressFileName
+                        processed_file_name = compressFileName
+                        filesize = os.stat(compressFileName).st_size
+                        zipDuration = datetime.now() - zipStartTime
+                        #record.append('\'' + str(zipDuration))
+                        record.append('\'' + str(datetime.now()))
+                    else:
+                        filesize = os.stat(processed_file_name).st_size
+                        record.append('None')
+
+                    replyStartTime = datetime.now()
+                    with open(processed_file_name, 'rb') as new_file_handle:
+                        #Send file info to client
+                        fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes
+                        #define file head info, including name and size
+                        filename = os.path.basename(processed_file_name)
+                        fhead = struct.pack('128sQI', bytes(filename.encode('utf-8')), filesize, IsCompressedVar.get())
+                        connection.send(fhead)
+                        LoggingText.insert('insert', '{}:{} {} file header info sent\n'.format(clientIp, clientPort, request))
+                        #send file data to client
+                        send_data = new_file_handle.read()
+                        connection.sendall(send_data)
+                        LoggingText.insert('insert', '{}:{} {} file send over...\n'.format(clientIp, clientPort, request))
+                    replyDuration = datetime.now() - replyStartTime
+                    #record.append('\'' + str(replyDuration))
+                    record.append('\'' + str(datetime.now()))
+
+                    TotalDuration = datetime.now()-startTime
+                    record.append('\'' + str(TotalDuration))
+
+                    with open(recordFilename,'a+') as csv_record:
+                        csv_write = csv.writer(csv_record)
+                        csv_write.writerow(record)
+
+                    status = 'WAIT_FOR_REQUEST'
             else:
                 print('Server is in unknown status')
                 status = 'WAIT_FOR_REQUEST'
-    LoggingText.insert('insert', 'Connection closed\n')
+    LoggingText.insert('insert', '{}：{} Connection closed\n'.format(clientIp,clientPort))
+
 
 
 window.mainloop()
