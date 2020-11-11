@@ -198,8 +198,8 @@ def ReceiveDataThread(connection,address):
                 pre_process_file = os.path.join('./{}/'.format(foldername), rcv_file_name)
                 with open(pre_process_file, 'wb') as rcv_file_handle:
                     while not (received_size == filesize):
-                        if(filesize - received_size > 1024):
-                            data = connection.recv(1024)
+                        if(filesize - received_size > 4096):
+                            data = connection.recv(4096)
                             if not data:
                                 isConnected = False
                                 break
@@ -211,8 +211,8 @@ def ReceiveDataThread(connection,address):
 
                 rcvEndTime = datetime.now()
                 rcvDelta = rcvEndTime - rcvStartTime
-                #record.append('\'' + str(rcvDelta))
-                record.append('\'' + str(rcvEndTime))
+                record.append('\'' + str(rcvDelta))
+                #record.append('\'' + str(rcvEndTime))
 
                 if isConnected == False:
                     LoggingText.insert('insert', '{}:{} {} file transfer failed\n'.format(clientIp, clientPort, rcv_file_name))
@@ -225,8 +225,8 @@ def ReceiveDataThread(connection,address):
                             filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
                             pre_process_file = filepath
                         upzipDelta = datetime.now()-upzipStartTime
-                        #record.append('\'' + str(upzipDelta))
-                        record.append('\'' + str(datetime.now()))
+                        record.append('\'' + str(upzipDelta))
+                        #record.append('\'' + str(datetime.now()))
                     else:
                         record.append('None')
 
@@ -236,12 +236,12 @@ def ReceiveDataThread(connection,address):
                     with open(pre_process_file,'rb') as rf:
                         all_data_str = rf.read().decode('utf-8')
                     readDelta = datetime.now()-readStartTime
-                    #record.append('\'' + str(readDelta))
-                    record.append('\'' + str(datetime.now()))
+                    record.append('\'' + str(readDelta))
+                    #record.append('\'' + str(datetime.now()))
 
                     #Write data to GUI ReceivedText field
                     ReceivedText.delete(1.0,'end')
-                    ReceivedText.insert('insert',all_data_str)
+                    ReceivedText.insert('insert',all_data_str[0:1000])
 
                     processStartTime = datetime.now()
                     #Process data according to request
@@ -263,19 +263,20 @@ def ReceiveDataThread(connection,address):
                         processed_data = 'unknown request!'
                         processed_file_name = os.path.join('./{}/'.format(foldername), 'unknowRequest.txt')
                     processDuration = datetime.now()-processStartTime
-                    #record.append('\'' + str(processDuration))
-                    record.append('\'' + str(datetime.now()))
+                    record.append('\'' + str(processDuration))
+                    #record.append('\'' + str(datetime.now()))
 
                     ProcessedText.delete(1.0,'end')
-                    ProcessedText.insert('insert',processed_data)
+                    ProcessedText.insert('insert',processed_data[0:1000])
+                    #ProcessedText.insert('insert','Process finished')
 
                     storeStartTime = datetime.now()
                     #Store local file
                     with open(processed_file_name, 'wb') as new_file_handle:
                         new_file_handle.write(processed_data.encode())
                     storeDuration = datetime.now() - storeStartTime
-                    #record.append('\'' + str(storeDuration))
-                    record.append('\'' + str(datetime.now()))
+                    record.append('\'' + str(storeDuration))
+                    #record.append('\'' + str(datetime.now()))
 
                     #Check if send compressed file
                     if IsCompressedVar.get() == 1:
@@ -287,8 +288,8 @@ def ReceiveDataThread(connection,address):
                         processed_file_name = compressFileName
                         filesize = os.stat(compressFileName).st_size
                         zipDuration = datetime.now() - zipStartTime
-                        #record.append('\'' + str(zipDuration))
-                        record.append('\'' + str(datetime.now()))
+                        record.append('\'' + str(zipDuration))
+                        #record.append('\'' + str(datetime.now()))
                     else:
                         filesize = os.stat(processed_file_name).st_size
                         record.append('None')
@@ -307,8 +308,8 @@ def ReceiveDataThread(connection,address):
                         connection.sendall(send_data)
                         LoggingText.insert('insert', '{}:{} {} file send over...\n'.format(clientIp, clientPort, request))
                     replyDuration = datetime.now() - replyStartTime
-                    #record.append('\'' + str(replyDuration))
-                    record.append('\'' + str(datetime.now()))
+                    record.append('\'' + str(replyDuration))
+                    #record.append('\'' + str(datetime.now()))
 
                     TotalDuration = datetime.now()-startTime
                     record.append('\'' + str(TotalDuration))

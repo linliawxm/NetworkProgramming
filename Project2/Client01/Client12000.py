@@ -214,8 +214,8 @@ def RequestThread(ReqType,ReqMsg):
                             received_size = 0
                             with open(rcv_file_name, 'wb') as rcv_file_handle:
                                 while not (received_size == filesize):
-                                    if(filesize - received_size > 1024):
-                                        data = clientSocket.recv(1024)
+                                    if(filesize - received_size > 4096):
+                                        data = clientSocket.recv(4096)
                                         if data:
                                             received_size += len(data)
                                         else:
@@ -245,7 +245,8 @@ def RequestThread(ReqType,ReqMsg):
                                 LoggingText.insert('insert', 'Processed file is received\n')
                                 #5. Display the replaced result
                                 ProcessedFileText.delete(1.0,'end')
-                                ProcessedFileText.insert('insert', all_data_str)
+                                ProcessedFileText.insert('insert', all_data_str[0:1000])
+                                #ProcessedFileText.insert('insert', 'Processed data received')
                             else:
                                 LoggingText.insert('insert', 'No connection! Please connect firstly\n')
                     else:
@@ -306,7 +307,7 @@ def SelectFile():
         SourceFileText.delete(1.0,'end')
         text = reader.read()
         print(len(text))
-        SourceFileText.insert('insert',text)
+        SourceFileText.insert('insert',text[0:1000])
 
 SelectButton = tk.Button(window, text='Source path...', font=('Arial',12), width=12, height=1, command = SelectFile)
 SelectButton.place(x=510, y=157, anchor='nw')
