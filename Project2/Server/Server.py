@@ -17,6 +17,7 @@ import struct
 import re
 import zipfile
 import csv
+import lzma
 
 serverPort = 12000
 

@@ -17,8 +17,9 @@ from datetime import datetime
 import time
 import zipfile
 import csv
+import lzma
 
-serverName = 'localhost'    #'192.168.0.15'
+serverName = '192.168.0.15'    #'192.168.0.15'
 serverPort = 12000
 
 # recordHeader = ['Start', 'Request', 'OrgSize','ZipSize', 'SendDelta','TotalDelta']
@@ -56,7 +57,7 @@ ReplaceWordVar.set(appName)
 SourceFilePathVar = tk.StringVar()
 SourceFilePathEntry = tk.Entry(window, show=None, font=('Arial',14), width = 44, textvariable=SourceFilePathVar)
 SourceFilePathEntry.place(x=10, y=160, anchor='nw')
-SourceFilePathVar.set('C:/GitHubProject/NetworkProgramming/Project2/{}/alice_Large.txt'.format(appName))
+SourceFilePathVar.set('C:/GitHubProject/NetworkProgramming/Project2/{}/alice.txt'.format(appName))
 
 SaveFileNameVar = tk.StringVar()
 SaveFileNameEntry = tk.Entry(window, show=None, font=('Arial',14), width = 15, textvariable=SaveFileNameVar)
@@ -185,9 +186,16 @@ def RequestThread(ReqType,ReqMsg):
 
                         if IsCompressedVar.get() == 1:
                             zipStartTime = datetime.now()
-                            zipfilename = filename.split('.')[0] + '.zip'
-                            with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
-                                f.write(filename)
+                            #Zipfile compression
+                            # zipfilename = filename.split('.')[0] + '.zip'
+                            # with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
+                            #     f.write(filename)
+                            #lzma compression
+                            zipfilename = filename.split('.')[0] + '.xz'
+                            with lzma.open(zipfilename, 'wb') as f:
+                                with open(filename,'rb') as pf:
+                                    textContent = pf.read()
+                                f.write(textContent)
                             filepath = zipfilename
                             filename = zipfilename
                             filesize = os.stat(filepath).st_size
@@ -252,10 +260,18 @@ def RequestThread(ReqType,ReqMsg):
                                 if IsCompressed:
                                     LoggingText.insert('insert', 'Processed file for {} was compressed\n'.format(ReqType))
                                     unzipStartTime = datetime.now()
-                                    with zipfile.ZipFile(rcv_file_name, 'r') as zf:
-                                        filepath = zf.extract(zf.namelist()[0]) #suppose only one file
-                                        #rcv_file_name = os.path.basename(filepath)
-                                        rcv_file_name = filepath
+                                    # with zipfile.ZipFile(rcv_file_name, 'r') as zf:
+                                    #     filepath = zf.extract(zf.namelist()[0]) #suppose only one file
+                                    #     #rcv_file_name = os.path.basename(filepath)
+                                    #     rcv_file_name = filepath
+                                    with lzma.open(rcv_file_name, 'rb') as f:
+                                        zipContent = f.read()
+                                        localFileName = 'ReceivedProcessedFor{}.txt'.format(ReqType)
+                                        with open(localFileName,'w') as uf:
+                                            uf.write(zipContent.decode("utf-8"))
+                                        #Dsiplay partial content in GUI
+                                        ProcessedFileText.delete(1.0,'end')
+                                        ProcessedFileText.insert('insert', zipContent.decode("utf-8")[0:1000])
                                     unzipDuration = datetime.now() - unzipStartTime
                                     record.append('\'' + str(unzipDuration))
                                     LoggingText.insert('insert', 'Processed file for {} is decompressed\n'.format(ReqType))
@@ -265,13 +281,13 @@ def RequestThread(ReqType,ReqMsg):
                                 total_duration = datetime.now() - startTime
                                 record.append('\'' + str(total_duration))
 
-                                with open(rcv_file_name,'rb') as rf:
-                                    all_data_str = rf.read().decode('utf-8')
+                                #with open(rcv_file_name,'rb') as rf:
+                                #    all_data_str = rf.read().decode('utf-8')
 
-                                LoggingText.insert('insert', 'Processed file is stored locally\n')
+                                #LoggingText.insert('insert', 'Processed file is stored locally\n')
                                 #5. Display the replaced result
-                                ProcessedFileText.delete(1.0,'end')
-                                ProcessedFileText.insert('insert', all_data_str[0:2000])
+                                #ProcessedFileText.delete(1.0,'end')
+                                #ProcessedFileText.insert('insert', all_data_str[0:2000])
 
                                 #ProcessedFileText.insert('insert', 'Processed data received')
                             else:
@@ -332,7 +348,7 @@ def SelectFile():
     with open(SourceFilePathVar.get(),'rb') as reader:
         SourceFileText.delete(1.0,'end')
         text = reader.read()
-        print(len(text))
+        #print(len(text))
         SourceFileText.insert('insert',text[0:1000])
 
 SelectButton = tk.Button(window, text='Source path...', font=('Arial',12), width=12, height=1, command = SelectFile)
@@ -342,7 +358,7 @@ SelectButton.place(x=510, y=157, anchor='nw')
 def SaveFile():
     filename = SaveFileNameVar.get()
     filepath = os.path.join(CurrentDirectory, filename)
-    print(filepath)
+    #print(filepath)
     with open(filepath, 'w') as fp:
         file_data = ProcessedFileText.get(1.0,'end')
         fp.write(file_data)
