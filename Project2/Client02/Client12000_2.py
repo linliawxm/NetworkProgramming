@@ -16,6 +16,7 @@ import win32api
 from datetime import datetime
 import time
 import zipfile
+import csv
 
 serverName = 'localhost'    #'192.168.0.15'
 serverPort = 12000
@@ -24,13 +25,18 @@ serverPort = 12000
 # with open('record.txt','w') as f:
 #     itemName = " ".join([str(elem) for elem in recordHeader])
 #     f.write(itemName)
+# recordFilename = "record.csv"
+# with open(recordFilename,'w') as csv_record:
+#     csv_write = csv.writer(csv_record)
+#     csv_head = ['Start', 'Request', 'OrgSize','ZipSize', 'zipDuration','SendDuration','ReceiveDuration','TotalDuration']
+#     csv_write.writerow(csv_head)
 
 CurrentDirectory = os.getcwd()
-
+appName = 'Client02'
 #Create main GUI window
 window = tk.Tk()
 #Set widnow's title
-window.title('Client')
+window.title(appName)
 #Set window width and height
 window.geometry('1305x650')
 
@@ -40,17 +46,17 @@ isConnected = False
 SearchWordVar = tk.StringVar()
 SearchWordEntry = tk.Entry(window, show=None, font=('Arial',14), width = 12, textvariable=SearchWordVar)
 SearchWordEntry.place(x=150, y=80, anchor='nw')
-SearchWordVar.set('Mobile')
+SearchWordVar.set('Alice')
 
 ReplaceWordVar = tk.StringVar()
 ReplaceWordEntry = tk.Entry(window, show=None, font=('Arial',14), width = 12, textvariable=ReplaceWordVar)
 ReplaceWordEntry.place(x=300, y=80, anchor='nw')
-ReplaceWordVar.set('iPhone')
+ReplaceWordVar.set(appName)
 
 SourceFilePathVar = tk.StringVar()
 SourceFilePathEntry = tk.Entry(window, show=None, font=('Arial',14), width = 44, textvariable=SourceFilePathVar)
 SourceFilePathEntry.place(x=10, y=160, anchor='nw')
-SourceFilePathVar.set('C:/GitHubProject/NetworkProgramming/Project1/Mobile IP wiki.txt')
+SourceFilePathVar.set('C:/GitHubProject/NetworkProgramming/Project2/{}/alice_Large.txt'.format(appName))
 
 SaveFileNameVar = tk.StringVar()
 SaveFileNameEntry = tk.Entry(window, show=None, font=('Arial',14), width = 15, textvariable=SaveFileNameVar)
@@ -154,7 +160,7 @@ def RequestThread(ReqType,ReqMsg):
     record = []
     if isConnected:
         startTime = datetime.now()
-        record.append(startTime)
+        record.append('\'' + str(startTime))
         record.append(ReqType)
         try:
             #Send request to server
@@ -176,10 +182,9 @@ def RequestThread(ReqType,ReqMsg):
                     filesize = os.stat(filepath).st_size
                     record.append(filesize)
                     if os.path.isfile(filepath):
-                        #Send file info to server
-                        fileinfo_size = struct.calcsize('128sQI')    #file name lentgh = 128 bytes; filesize = 8bytes;IsCompressed = 4bytes(int)
-                        #define file head info, including name and size
+
                         if IsCompressedVar.get() == 1:
+                            zipStartTime = datetime.now()
                             zipfilename = filename.split('.')[0] + '.zip'
                             with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
                                 f.write(filename)
@@ -187,8 +192,14 @@ def RequestThread(ReqType,ReqMsg):
                             filename = zipfilename
                             filesize = os.stat(filepath).st_size
                             record.append(filesize)
+                            zipDuration = datetime.now()-zipStartTime
+                            record.append('\'' + str(zipDuration))
                         else:
                             record.append('None')
+                            record.append(0)
+
+                        #Send file info to server
+                        #Header structure : file name lentgh = 128 bytes; filesize = 8bytes; IsCompressed = 4bytes(int)
                         fhead = struct.pack('128sQI', bytes(filename.encode('utf-8')), filesize, IsCompressedVar.get())
                         clientSocket.send(fhead)
                         LoggingText.insert('insert', '{} file header sent\n'.format(ReqType))
@@ -201,7 +212,11 @@ def RequestThread(ReqType,ReqMsg):
                             LoggingText.insert('insert', '{} file send over...\n'.format(ReqType))
                         sendoverTime = datetime.now()
                         sendoverDetal = sendoverTime - sendStartTime
-                        record.append(sendoverDetal)
+                        record.append('\'' + str(sendoverDetal))
+
+                        LoggingText.insert('insert', 'Waiting for server processing and feedback\n')
+
+                        rcvStartTime = datetime.now()
                         #4. Receive the processed result
                         fileinfo_size = struct.calcsize('128sQI')
                         fileinfo_data = clientSocket.recv(fileinfo_size)
@@ -209,13 +224,13 @@ def RequestThread(ReqType,ReqMsg):
                         if fileinfo_data:
                             filename,filesize,IsCompressed = struct.unpack('128sQI',fileinfo_data)
                             rcv_file_name = filename.decode('utf-8').strip('\x00')
-                            LoggingText.insert('insert', '{0} header info is received and size is {1} bytes\n'.format(rcv_file_name,filesize))
+                            LoggingText.insert('insert', 'Processed file header info is received for {}\n'.format(ReqType))
 
                             received_size = 0
                             with open(rcv_file_name, 'wb') as rcv_file_handle:
                                 while not (received_size == filesize):
-                                    if(filesize - received_size > 1024):
-                                        data = clientSocket.recv(1024)
+                                    if(filesize - received_size > 4096):
+                                        data = clientSocket.recv(4096)
                                         if data:
                                             received_size += len(data)
                                         else:
@@ -229,23 +244,36 @@ def RequestThread(ReqType,ReqMsg):
                                             isConnected = False
                                             break
                                     rcv_file_handle.write(data)
-                            reverseoverTime = datetime.now()
-                            reverseoverDetal = reverseoverTime - sendStartTime
-                            record.append(reverseoverDetal)
+                            LoggingText.insert('insert', 'Processed file for {} is received\n'.format(ReqType))
+
+                            reverseoverDetal = datetime.now() - rcvStartTime
+                            record.append('\'' + str(reverseoverDetal))
                             if isConnected:
                                 if IsCompressed:
+                                    LoggingText.insert('insert', 'Processed file for {} was compressed\n'.format(ReqType))
+                                    unzipStartTime = datetime.now()
                                     with zipfile.ZipFile(rcv_file_name, 'r') as zf:
                                         filepath = zf.extract(zf.namelist()[0]) #suppose only one file
                                         #rcv_file_name = os.path.basename(filepath)
                                         rcv_file_name = filepath
+                                    unzipDuration = datetime.now() - unzipStartTime
+                                    record.append('\'' + str(unzipDuration))
+                                    LoggingText.insert('insert', 'Processed file for {} is decompressed\n'.format(ReqType))
+                                else:
+                                    record.append(0)
+
+                                total_duration = datetime.now() - startTime
+                                record.append('\'' + str(total_duration))
 
                                 with open(rcv_file_name,'rb') as rf:
                                     all_data_str = rf.read().decode('utf-8')
 
-                                LoggingText.insert('insert', 'Processed file is received\n')
+                                LoggingText.insert('insert', 'Processed file is stored locally\n')
                                 #5. Display the replaced result
                                 ProcessedFileText.delete(1.0,'end')
-                                ProcessedFileText.insert('insert', all_data_str)
+                                ProcessedFileText.insert('insert', all_data_str[0:2000])
+
+                                #ProcessedFileText.insert('insert', 'Processed data received')
                             else:
                                 LoggingText.insert('insert', 'No connection! Please connect firstly\n')
                     else:
@@ -256,10 +284,9 @@ def RequestThread(ReqType,ReqMsg):
     else:
         LoggingText.insert('insert', 'No connection! Please connect firstly\n')
     print('Request thread for {} ended'.format(ReqType))
-    with open('Record.txt','a') as f:
-        recordValue = " ".join([str(elem) for elem in record])
-        f.write(recordValue)
-        f.write('\n')
+    with open('record.csv','a+') as csv_record:
+        csv_write = csv.writer(csv_record)
+        csv_write.writerow(record)
 
 def SearchWordFromServer():
     ReqType = 'Search'
@@ -306,7 +333,7 @@ def SelectFile():
         SourceFileText.delete(1.0,'end')
         text = reader.read()
         print(len(text))
-        SourceFileText.insert('insert',text)
+        SourceFileText.insert('insert',text[0:1000])
 
 SelectButton = tk.Button(window, text='Source path...', font=('Arial',12), width=12, height=1, command = SelectFile)
 SelectButton.place(x=510, y=157, anchor='nw')
