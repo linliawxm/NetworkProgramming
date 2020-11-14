@@ -154,12 +154,12 @@ def ReceiveDataThread(connection,address, clientId):
                     isConnected = False
                     break
                 #Set progress bar
-                if clientId == 1:
-                    client1Pbar['value'] = 10
-                else:
-                    client2Pbar['value'] = 10
+                # if clientId == 0:
+                #     client1Pbar['value'] = 5
+                # else:
+                #     client2Pbar['value'] = 5
                 message = message.decode()
-                print(message)
+                #print(message)
 
                 record = [foldername]
 
@@ -210,10 +210,10 @@ def ReceiveDataThread(connection,address, clientId):
                 LoggingText.insert('insert', logMsg)
                 record.append(reqType)
                 #Set progress bar
-                if clientId == 1:
-                    client1Pbar['value'] = 20
+                if clientId == 0:
+                    client1Pbar['value'] = 7
                 else:
-                    client2Pbar['value'] = 20
+                    client2Pbar['value'] = 7
             elif (status == 'WAIT_FOR_FILE_INFO'):
                 fileinfo_size = struct.calcsize('128sQI')
                 fileinfo_data = connection.recv(fileinfo_size)
@@ -225,10 +225,10 @@ def ReceiveDataThread(connection,address, clientId):
                 rcv_file_name = filename.decode('utf-8').strip('\x00')
                 LoggingText.insert('insert', '{}:{} Header info received\n'.format(clientIp,clientPort))
                 #Set progress bar
-                if clientId == 1:
-                    client1Pbar['value'] = 30
+                if clientId == 0:
+                    client1Pbar['value'] = 10
                 else:
-                    client2Pbar['value'] = 30
+                    client2Pbar['value'] = 10
 
                 #Receive the data of file
                 received_size = 0
@@ -246,12 +246,14 @@ def ReceiveDataThread(connection,address, clientId):
                             data = connection.recv(filesize - received_size)
                             received_size = filesize
                         rcv_file_handle.write(data)
+                        #ReceivedText.insert('insert', '{}:{} Received {} bytes data\n'.format(clientIp, clientPort,received_size))
+                        #Set progress bar
+                        if clientId == 0:
+                            client1Pbar['value'] = 10 + int((received_size/filesize)*40)
+                        else:
+                            client2Pbar['value'] = 10 + int((received_size/filesize)*40)
                 LoggingText.insert('insert', '{}:{} Requested file is received\n'.format(clientIp, clientPort))
-                #Set progress bar
-                if clientId == 1:
-                    client1Pbar['value'] = 50
-                else:
-                    client2Pbar['value'] = 50
+
                 rcvEndTime = datetime.now()
                 rcvDelta = rcvEndTime - rcvStartTime
                 record.append('\'' + str(rcvDelta))
@@ -266,9 +268,15 @@ def ReceiveDataThread(connection,address, clientId):
                     if IsCompressed:
                         LoggingText.insert('insert', '{}:{} Requested file was compressed\n'.format(clientIp, clientPort))
                         upzipStartTime = datetime.now()
-                        with zipfile.ZipFile(pre_process_file, 'r') as zf:
-                            filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
-                            pre_process_file = filepath
+
+                        # with zipfile.ZipFile(pre_process_file, 'r') as zf:
+                        #     filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
+                        #     pre_process_file = filepath
+                        with lzma.open(pre_process_file, 'rb') as f:
+                            zipContent = f.read()
+                            pre_process_file = 'ReceivedFileFor{}.txt'.format(request)
+                            with open(pre_process_file,'w') as uf:
+                                uf.write(zipContent.decode("utf-8"))
                         LoggingText.insert('insert', '{}:{} Requested file is decompressed\n'.format(clientIp, clientPort))
                         upzipDelta = datetime.now()-upzipStartTime
                         record.append('\'' + str(upzipDelta))
@@ -276,10 +284,10 @@ def ReceiveDataThread(connection,address, clientId):
                     else:
                         record.append('None')
                     #Set progress bar
-                    if clientId == 1:
-                        client1Pbar['value'] = 60
+                    if clientId == 0:
+                        client1Pbar['value'] = 55
                     else:
-                        client2Pbar['value'] = 60
+                        client2Pbar['value'] = 55
 
                     readStartTime = datetime.now()
                     #Read out the data from file
@@ -291,10 +299,10 @@ def ReceiveDataThread(connection,address, clientId):
                     #record.append('\'' + str(datetime.now()))
 
                     #Set progress bar
-                    if clientId == 1:
-                        client1Pbar['value'] = 70
+                    if clientId == 0:
+                        client1Pbar['value'] = 57
                     else:
-                        client2Pbar['value'] = 70
+                        client2Pbar['value'] = 57
 
                     #Write data to GUI ReceivedText field
                     #ReceivedText.delete(1.0,'end')
@@ -326,10 +334,10 @@ def ReceiveDataThread(connection,address, clientId):
                     #record.append('\'' + str(datetime.now()))
                     LoggingText.insert('insert', '{}:{} Processing for {} is done. \n'.format(clientIp, clientPort,reqType))
                     #Set progress bar
-                    if clientId == 1:
-                        client1Pbar['value'] = 80
+                    if clientId == 0:
+                        client1Pbar['value'] = 60
                     else:
-                        client2Pbar['value'] = 80
+                        client2Pbar['value'] = 60
 
                     #ProcessedText.delete(1.0,'end')
                     #ProcessedText.insert('insert',processed_data[0:1000])
@@ -345,18 +353,23 @@ def ReceiveDataThread(connection,address, clientId):
                     #record.append('\'' + str(datetime.now()))
 
                     #Set progress bar
-                    if clientId == 1:
-                        client1Pbar['value'] = 90
+                    if clientId == 0:
+                        client1Pbar['value'] = 65
                     else:
-                        client2Pbar['value'] = 90
+                        client2Pbar['value'] = 65
 
                     #Check if send compressed file
                     if IsCompressedVar.get() == 1:
                         LoggingText.insert('insert', '{}:{} Conducting compression for feedback\n'.format(clientIp, clientPort))
                         zipStartTime = datetime.now()
-                        compressFileName = os.path.join('./{}/'.format(foldername),'Processed.zip')
-                        with zipfile.ZipFile(compressFileName, 'w', zipfile.ZIP_DEFLATED) as f:
-                            f.write(processed_file_name)
+                        #compressFileName = os.path.join('./{}/'.format(foldername),'Processed.zip')
+                        # with zipfile.ZipFile(compressFileName, 'w', zipfile.ZIP_DEFLATED) as f:
+                        #     f.write(processed_file_name)
+                        compressFileName = os.path.join('./{}/'.format(foldername),'Processed.xz')
+                        with lzma.open(compressFileName, 'wb') as f:
+                            with open(processed_file_name,'rb') as pf:
+                                textContent = pf.read()
+                            f.write(textContent)
                         LoggingText.insert('insert', '{}:{} Compression for feedback finished\n'.format(clientIp, clientPort))
                         filepath = compressFileName
                         processed_file_name = compressFileName
@@ -369,10 +382,10 @@ def ReceiveDataThread(connection,address, clientId):
                         record.append('None')
 
                     #Set progress bar
-                    if clientId == 1:
-                        client1Pbar['value'] = 95
+                    if clientId == 0:
+                        client1Pbar['value'] = 70
                     else:
-                        client2Pbar['value'] = 95
+                        client2Pbar['value'] = 70
 
                     replyStartTime = datetime.now()
                     LoggingText.insert('insert', '{}:{} Start sending feedback for {} request\n'.format(clientIp, clientPort,reqType))
@@ -402,7 +415,7 @@ def ReceiveDataThread(connection,address, clientId):
                         csv_write.writerow(record)
 
                     #Set progress bar
-                    if clientId == 1:
+                    if clientId == 0:
                         client1Pbar['value'] = 100
                     else:
                         client2Pbar['value'] = 100
