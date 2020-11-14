@@ -21,6 +21,8 @@ import lzma
 
 serverName = '192.168.0.15'    #'192.168.0.15'
 serverPort = 12000
+appName = 'Client01'
+zipType = 'zipfile' #'lamz'
 
 # recordHeader = ['Start', 'Request', 'OrgSize','ZipSize', 'SendDelta','TotalDelta']
 # with open('record.txt','w') as f:
@@ -33,7 +35,7 @@ serverPort = 12000
 #     csv_write.writerow(csv_head)
 
 CurrentDirectory = os.getcwd()
-appName = 'Client01'
+
 #Create main GUI window
 window = tk.Tk()
 #Set widnow's title
@@ -186,16 +188,18 @@ def RequestThread(ReqType,ReqMsg):
 
                         if IsCompressedVar.get() == 1:
                             zipStartTime = datetime.now()
-                            #Zipfile compression
-                            # zipfilename = filename.split('.')[0] + '.zip'
-                            # with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
-                            #     f.write(filename)
-                            #lzma compression
-                            zipfilename = filename.split('.')[0] + '.xz'
-                            with lzma.open(zipfilename, 'wb') as f:
-                                with open(filename,'rb') as pf:
-                                    textContent = pf.read()
-                                f.write(textContent)
+                            if zipType =='zipfile':
+                                #Zipfile compression
+                                zipfilename = filename.split('.')[0] + '.zip'
+                                with zipfile.ZipFile(zipfilename, 'w', zipfile.ZIP_DEFLATED) as f:
+                                    f.write(filename)
+                            elif zipType =='lzma':
+                                #lzma compression
+                                zipfilename = filename.split('.')[0] + '.xz'
+                                with lzma.open(zipfilename, 'wb') as f:
+                                    with open(filename,'rb') as pf:
+                                        textContent = pf.read()
+                                    f.write(textContent)
                             filepath = zipfilename
                             filename = zipfilename
                             filesize = os.stat(filepath).st_size
@@ -260,18 +264,21 @@ def RequestThread(ReqType,ReqMsg):
                                 if IsCompressed:
                                     LoggingText.insert('insert', 'Processed file for {} was compressed\n'.format(ReqType))
                                     unzipStartTime = datetime.now()
-                                    # with zipfile.ZipFile(rcv_file_name, 'r') as zf:
-                                    #     filepath = zf.extract(zf.namelist()[0]) #suppose only one file
-                                    #     #rcv_file_name = os.path.basename(filepath)
-                                    #     rcv_file_name = filepath
-                                    with lzma.open(rcv_file_name, 'rb') as f:
-                                        zipContent = f.read()
-                                        localFileName = 'ReceivedProcessedFor{}.txt'.format(ReqType)
-                                        with open(localFileName,'w') as uf:
-                                            uf.write(zipContent.decode("utf-8"))
-                                        #Dsiplay partial content in GUI
-                                        ProcessedFileText.delete(1.0,'end')
-                                        ProcessedFileText.insert('insert', zipContent.decode("utf-8")[0:1000])
+                                    if zipType =='zipfile':
+                                        with zipfile.ZipFile(rcv_file_name, 'r') as zf:
+                                            filepath = zf.extract(zf.namelist()[0]) #suppose only one file
+                                            #rcv_file_name = os.path.basename(filepath)
+                                            rcv_file_name = filepath
+                                    elif zipType =='lzma':
+                                        with lzma.open(rcv_file_name, 'rb') as f:
+                                            zipContent = f.read()
+                                            localFileName = 'ReceivedProcessedFor{}.txt'.format(ReqType)
+                                            with open(localFileName,'w') as uf:
+                                                uf.write(zipContent.decode("utf-8"))
+                                            rcv_file_name = localFileName
+                                            #Dsiplay partial content in GUI
+                                            #ProcessedFileText.delete(1.0,'end')
+                                            #ProcessedFileText.insert('insert', zipContent.decode("utf-8")[0:1000])
                                     unzipDuration = datetime.now() - unzipStartTime
                                     record.append('\'' + str(unzipDuration))
                                     LoggingText.insert('insert', 'Processed file for {} is decompressed\n'.format(ReqType))
@@ -281,15 +288,15 @@ def RequestThread(ReqType,ReqMsg):
                                 total_duration = datetime.now() - startTime
                                 record.append('\'' + str(total_duration))
 
-                                #with open(rcv_file_name,'rb') as rf:
-                                #    all_data_str = rf.read().decode('utf-8')
+                                with open(rcv_file_name,'rb') as rf:
+                                    all_data_str = rf.read().decode('utf-8')
 
                                 #LoggingText.insert('insert', 'Processed file is stored locally\n')
-                                #5. Display the replaced result
-                                #ProcessedFileText.delete(1.0,'end')
-                                #ProcessedFileText.insert('insert', all_data_str[0:2000])
+                                #Dsiplay partial content in GUI
+                                ProcessedFileText.delete(1.0,'end')
+                                ProcessedFileText.insert('insert', all_data_str[0:2000])
 
-                                #ProcessedFileText.insert('insert', 'Processed data received')
+
                             else:
                                 LoggingText.insert('insert', 'No connection! Please connect firstly\n')
                     else:

@@ -20,6 +20,7 @@ import csv
 import lzma
 
 serverPort = 12000
+zipType ='zipfile'
 
 #Create main window
 window = tk.Tk()
@@ -269,15 +270,16 @@ def ReceiveDataThread(connection,address, clientId):
                     if IsCompressed:
                         LoggingText.insert('insert', '{}:{} Requested file was compressed\n'.format(clientIp, clientPort))
                         upzipStartTime = datetime.now()
-
-                        # with zipfile.ZipFile(pre_process_file, 'r') as zf:
-                        #     filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
-                        #     pre_process_file = filepath
-                        with lzma.open(pre_process_file, 'rb') as f:
-                            zipContent = f.read()
-                            pre_process_file = 'ReceivedFileFor{}.txt'.format(request)
-                            with open(pre_process_file,'w') as uf:
-                                uf.write(zipContent.decode("utf-8"))
+                        if zipType =='zipfile':
+                            with zipfile.ZipFile(pre_process_file, 'r') as zf:
+                                filepath = zf.extract( zf.namelist()[0], './{}/'.format(foldername)) #suppose only one file
+                                pre_process_file = filepath
+                        elif zipType =='lzma':
+                            with lzma.open(pre_process_file, 'rb') as f:
+                                zipContent = f.read()
+                                pre_process_file = 'ReceivedFileFor{}.txt'.format(request)
+                                with open(pre_process_file,'w') as uf:
+                                    uf.write(zipContent.decode("utf-8"))
                         LoggingText.insert('insert', '{}:{} Requested file is decompressed\n'.format(clientIp, clientPort))
                         upzipDelta = datetime.now()-upzipStartTime
                         record.append('\'' + str(upzipDelta))
@@ -363,14 +365,16 @@ def ReceiveDataThread(connection,address, clientId):
                     if IsCompressedVar.get() == 1:
                         LoggingText.insert('insert', '{}:{} Conducting compression for feedback\n'.format(clientIp, clientPort))
                         zipStartTime = datetime.now()
-                        #compressFileName = os.path.join('./{}/'.format(foldername),'Processed.zip')
-                        # with zipfile.ZipFile(compressFileName, 'w', zipfile.ZIP_DEFLATED) as f:
-                        #     f.write(processed_file_name)
-                        compressFileName = os.path.join('./{}/'.format(foldername),'Processed.xz')
-                        with lzma.open(compressFileName, 'wb') as f:
-                            with open(processed_file_name,'rb') as pf:
-                                textContent = pf.read()
-                            f.write(textContent)
+                        if zipType =='zipfile':
+                            compressFileName = os.path.join('./{}/'.format(foldername),'Processed.zip')
+                            with zipfile.ZipFile(compressFileName, 'w', zipfile.ZIP_DEFLATED) as f:
+                                f.write(processed_file_name)
+                        elif zipType =='lzma':
+                            compressFileName = os.path.join('./{}/'.format(foldername),'Processed.xz')
+                            with lzma.open(compressFileName, 'wb') as f:
+                                with open(processed_file_name,'rb') as pf:
+                                    textContent = pf.read()
+                                f.write(textContent)
                         LoggingText.insert('insert', '{}:{} Compression for feedback finished\n'.format(clientIp, clientPort))
                         filepath = compressFileName
                         processed_file_name = compressFileName
